@@ -9,7 +9,6 @@
 **LitePost** é uma alternativa moderna aos clientes HTTP tradicionais. Ao contrário de apps baseados em Electron que consomem 400MB+ de RAM apenas para existir, o LitePost utiliza **Tauri (Rust)** e o WebView nativo do sistema operacional, resultando em um binário minúsculo (~5MB) e consumo de memória insignificante.
 
 ![Screenshot do LitePost](./screenshot.png)
-*(Coloque um print do seu app aqui e nomeie como screenshot.png)*
 
 ## 🚀 Funcionalidades
 
