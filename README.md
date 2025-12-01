@@ -35,7 +35,7 @@ Certifique-se de ter o ambiente Rust e Node.js configurados.
 
 ```bash
 # 1. Clone o repositório
-git clone https://github.com/seu-usuario/litepost.git
+git clone https://github.com/samuelves/LitePost.git
 
 # 2. Instale as dependências
 npm install
