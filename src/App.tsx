@@ -15,19 +15,27 @@ import EnvManager from "./components/env-manager";
 import SnippetModal from "./components/snippet-modal";
 import CurlImportModal from "./components/curl-import-modal";
 import { CollectionItem } from "./types";
+import { setupMonacoTheme } from "./lib/monaco";
 
 function App() {
+  // 1. Hooks de Lógica
   const collections = useCollections();
   const form = useRequestForm();
   const api = useApiSender();
   const envs = useEnvironments();
 
+  useEffect(() => {
+    setupMonacoTheme();
+  }, []);
+
+  // 2. Estados de UI (Tipados)
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
     targetId: string | null;
     type: string;
   } | null>(null);
+
   const [activeModal, setActiveModal] = useState<{
     type: "create_folder" | "create_req" | "rename";
     targetId: string | null;
@@ -36,6 +44,8 @@ function App() {
   const [showEnvManager, setShowEnvManager] = useState(false);
   const [showSnippet, setShowSnippet] = useState(false);
   const [showCurl, setShowCurl] = useState(false);
+
+  // --- HANDLERS ---
 
   const handleSelectRequest = (item: CollectionItem) => {
     form.loadRequest(item);
@@ -48,36 +58,28 @@ function App() {
   };
 
   const handleSend = () => {
-    const currentVars = envs.activeVars || [];
-
-    // Debug: Ajuda a ver se as variáveis estão chegando no console (F12)
-    console.log("Enviando com variáveis:", currentVars);
-    // Passa as variaveis de ambiente ativas para o Sender
     api.sendRequest(form.getSnapshot(), envs.activeVars);
   };
 
-  const handleCurlImport = (data: {
-    method: string;
-    url: string;
-    headers: KeyValue[];
-    body: string;
-  }) => {
-    form.setMethod(data.method || "GET");
-    form.setUrl(data.url || "");
-    if (data.headers && data.headers.length > 0)
+  const handleCurlImport = (data: any) => {
+    form.setMethod(data.method);
+    form.setUrl(data.url);
+    if (data.headers) {
+      // Adiciona uma linha vazia no final para facilitar edição
       form.setHeaders([...data.headers, { key: "", value: "", active: true }]);
+    }
     if (data.body) form.setBody(data.body);
   };
 
   // --- ATALHOS DE TECLADO ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // CTRL + ENTER = SEND
+      // CTRL + ENTER = Send
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault();
         handleSend();
       }
-      // CTRL + S = SAVE
+      // CTRL + S = Save
       if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault();
         handleSaveRequest();
@@ -85,9 +87,10 @@ function App() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [form, envs.activeVars]); // Dependências importantes para o Send funcionar com estado atual
+  }, [form, envs.activeVars]); // Recria o listener se o form mudar para pegar o estado atual
 
-  // ... (Logica de context menu e modal basico igual antes) ...
+  // --- MENUS E MODAIS ---
+
   const handleContextMenu = (
     e: React.MouseEvent,
     item: CollectionItem | null,
@@ -97,28 +100,30 @@ function App() {
     setContextMenu({
       x: e.pageX,
       y: e.pageY,
-      targetId: item?.id || null,
-      type: item?.type || "root",
+      targetId: item ? item.id : null,
+      type: item ? item.type : "root",
     });
   };
+
   const handleModalSubmit = (val: string) => {
     if (!activeModal) return;
     const { type, targetId } = activeModal;
-    if (!targetId) return;
-    if (type === "create_folder")
+
+    if (type === "create_folder") {
       collections.createItem(targetId, "folder", val);
-    else if (type === "create_req") {
-      const r = collections.createItem(targetId, "request", val);
-      form.loadRequest(r);
+    } else if (type === "create_req") {
+      const newReq = collections.createItem(targetId, "request", val);
+      form.loadRequest(newReq);
       api.clearResponse();
-    } else if (type === "rename") {
+    } else if (type === "rename" && targetId) {
       collections.renameItem(targetId, val);
       if (form.selectedId === targetId) form.setRequestName(val);
     }
     setActiveModal(null);
   };
+
   const handleDelete = (id: string) => {
-    if (confirm("Delete?")) {
+    if (confirm("Are you sure you want to delete this item?")) {
       collections.deleteItem(id);
       if (form.selectedId === id) form.setSelectedId(null);
     }
@@ -129,55 +134,66 @@ function App() {
       className="flex flex-col h-screen w-screen bg-[#09090b] text-gray-200 font-sans overflow-hidden"
       onClick={() => setContextMenu(null)}
     >
-      {/* HEADER (Mantido igual) */}
-      <div className="h-12 bg-[#09090b] border-b border-[#27272a] flex items-center justify-end px-4 select-none gap-4 shrink-0">
-        {/* ... (Seu código do header/env selector aqui) ... */}
-        <div className="bg-[#09090b] flex items-center gap-3">
-          <span className="text-[10px] text-gray-500 font-bold">ENV:</span>
-          <select
-            className="bg-[#09090b] border border-[#333] text-xs rounded p-1 outline-none"
-            value={envs.activeEnvId || ""}
-            onChange={(e) => envs.setActiveEnvId(e.target.value)}
-          >
-            {envs.envs.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.name}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={() => setShowEnvManager(true)}
-            className="text-gray-500 hover:text-white"
-          >
-            ⚙
-          </button>
+      {/* HEADER */}
+      <div className="h-12 bg-[#09090b] border-b border-[#27272a] flex items-center justify-between px-4 select-none shrink-0 z-10">
+        <div className="font-bold text-violet-500 text-sm tracking-wide">
+          LitePost
         </div>
-        <div className="flex gap-2">
+
+        <div className="flex items-center gap-4">
+          {/* Env Selector */}
+          <div className="flex items-center bg-[#18181b] rounded border border-[#333] h-7 px-2 hover:border-[#555] transition-colors">
+            <span className="text-xs text-gray-500 font-bold mr-2 p-2">
+              ENV
+            </span>
+            <div className="relative">
+              <select
+                className={`bg-[#18181b] font-bold text-xs h-10 pl-3 pr-8 rounded border border-[#333] outline-none cursor-pointer hover:border-[#555] appearance-none`}
+                value={envs.activeEnvId || ""}
+                onChange={(e) => envs.setActiveEnvId(e.target.value)}
+              >
+                {/* CSS FIX: Options escuras */}
+                {envs.envs.map((e) => (
+                  <option key={e.id} value={e.id} className="bg-[#18181b]">
+                    {e.name}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-2 top-3 pointer-events-none text-[10px] text-gray-500">
+                ▼
+              </div>
+            </div>
+            <button
+              onClick={() => setShowEnvManager(true)}
+              className="ml-2 text-gray-500 hover:text-white text-xs p-2"
+            >
+              ⚙
+            </button>
+          </div>
+
+          <div className="w-[1px] h-4 bg-[#333]"></div>
+
+          {/* Tools */}
           <button
             onClick={() => setShowCurl(true)}
-            className="text-xs text-gray-400 hover:text-white"
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors"
           >
-            Import
+            <span>📥</span> Import
           </button>
           <button
             onClick={() => setShowSnippet(true)}
-            className="text-xs text-gray-400 hover:text-white"
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors"
           >
-            Code
+            <span>{"</>"}</span> Code
           </button>
         </div>
       </div>
 
-      {/* --- ÁREA DE PAINÉIS REDIMENSIONÁVEIS --- */}
-      <div className="flex-1 overflow-hidden">
+      {/* PAINÉIS (LAYOUT PRINCIPAL) */}
+      <div className="flex-1 overflow-hidden relative">
         <PanelGroup direction="horizontal">
-          {/* 1. PAINEL DA ESQUERDA (SIDEBAR) */}
-          <Panel
-            defaultSize={20}
-            minSize={15}
-            maxSize={30}
-            className="flex flex-col"
-          >
+          {/* 1. SIDEBAR */}
+          <Panel className="bg-[#18181b] border-r border-[#27272a] flex flex-col h-full">
             <Sidebar
               collections={collections.data}
               selectedId={form.selectedId}
@@ -190,14 +206,17 @@ function App() {
             />
           </Panel>
 
-          {/* DIVISÓRIA 1 (Igual a outra) */}
-          <PanelResizeHandle className="w-[1px] bg-[#27272a] hover:bg-violet-600 transition-colors hover:w-[2px] z-10" />
+          <PanelResizeHandle className="w-[1px] bg-[#27272a] hover:bg-violet-600 transition-colors hover:w-[2px] z-50" />
 
-          {/* 2. PAINEL DA DIREITA (WORKSPACE) */}
-          <Panel>
+          {/* 2. WORKSPACE */}
+          <Panel defaultSize={50} minSize={20} className="flex flex-col h-full">
             <PanelGroup direction="horizontal">
-              {/* 2A. REQUEST (MEIO) */}
-              <Panel defaultSize={50} minSize={20}>
+              {/* REQUEST */}
+              <Panel
+                defaultSize={50}
+                minSize={20}
+                className="bg-[#09090b] flex flex-col h-full"
+              >
                 <RequestPanel
                   {...form}
                   loading={api.loading}
@@ -208,11 +227,14 @@ function App() {
                 />
               </Panel>
 
-              {/* DIVISÓRIA 2 */}
-              <PanelResizeHandle className="w-[1px] bg-[#27272a] hover:bg-violet-600 transition-colors hover:w-[2px] z-10" />
+              <PanelResizeHandle className="w-[1px] bg-[#27272a] hover:bg-violet-600 transition-colors hover:w-[2px] z-50" />
 
-              {/* 2B. RESPONSE (DIREITA) */}
-              <Panel defaultSize={50} minSize={20}>
+              {/* RESPONSE */}
+              <Panel
+                defaultSize={50}
+                minSize={20}
+                className="bg-[#09090b] flex flex-col h-full"
+              >
                 <ResponsePanel response={api.response} />
               </Panel>
             </PanelGroup>
@@ -220,16 +242,12 @@ function App() {
         </PanelGroup>
       </div>
 
-      {/* ... Modais ... */}
-      {/* (Seus modais aqui embaixo mantidos iguais) */}
-      <GlobalModals
-        activeModal={activeModal}
-        onClose={() => setActiveModal(null)}
-        onSubmit={handleModalSubmit}
-      />
+      {/* --- FLUTUANTES --- */}
+
+      {/* Context Menu Customizado */}
       {contextMenu && (
         <div
-          className="absolute bg-[#252526] border border-[#444] rounded z-50 py-1 w-40 shadow-xl"
+          className="fixed bg-[#252526] border border-[#444] rounded z-[100] py-1 w-40 shadow-xl text-gray-200"
           style={{ top: contextMenu.y, left: contextMenu.x }}
         >
           {(contextMenu.type === "folder" || contextMenu.type === "root") && (
@@ -273,7 +291,7 @@ function App() {
               </button>
               <button
                 className="block w-full text-left px-4 py-2 text-xs hover:bg-red-900 text-red-400"
-                onClick={() => handleDelete(contextMenu.targetId || "")}
+                onClick={() => handleDelete(contextMenu.targetId!)}
               >
                 Delete
               </button>
@@ -281,6 +299,13 @@ function App() {
           )}
         </div>
       )}
+
+      {/* Modais Globais */}
+      <GlobalModals
+        activeModal={activeModal}
+        onClose={() => setActiveModal(null)}
+        onSubmit={handleModalSubmit}
+      />
       <EnvManager
         isOpen={showEnvManager}
         onClose={() => setShowEnvManager(false)}

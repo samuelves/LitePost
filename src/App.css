@@ -1,18 +1,19 @@
 @import "tailwindcss";
-/* Scrollbar Dark */
+/* Scrollbar Dark - Estilo Insomnia */
 ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
 }
 ::-webkit-scrollbar-track {
     background: #09090b;
 }
 ::-webkit-scrollbar-thumb {
-    background: #09090b;
+    background: #27272a;
     border-radius: 4px;
+    border: 2px solid #09090b;
 }
 ::-webkit-scrollbar-thumb:hover {
-    background: #09090b;
+    background: #3f3f46;
 }
 
 /* Remove fundo branco de autofill do Chrome */
@@ -24,28 +25,47 @@ input:-webkit-autofill:active {
     -webkit-text-fill-color: white !important;
 }
 
-/* Ajustes finos do CodeMirror para preencher tudo */
-.cm-editor {
-    height: 100%;
-    background-color: #09090b;
-}
-.cm-scroller {
-    overflow: auto;
-    padding: 0 !important;
-}
-
-.cm-theme-light .cm-content {
-    background-color: #09090b;
-}
-
-.cm-line {
-    background-color: #27272a;
-}
-
 input,
 select,
 textarea,
 button {
     font-family: inherit;
-    font-size: 18px;
+}
+
+/* CodeMirror com height 100% precisa de scroll */
+.cm-editor {
+    height: 100%;
+}
+
+.cm-scroller {
+    overflow: auto !important;
+}
+
+/* CodeMirror URL Input Custom Styles - apenas para input de URL */
+.cm-editor.cm-focused {
+    outline: none !important;
+}
+
+/* Estilos específicos para URL input - usa classe parent do wrapper */
+.url-input-wrapper .cm-scroller {
+    font-family: inherit !important;
+    align-items: center !important;
+    display: flex !important;
+    overflow: hidden !important;
+}
+
+.url-input-wrapper .cm-content {
+    padding: 0 !important;
+    min-height: auto !important;
+}
+
+.url-input-wrapper .cm-line {
+    padding: 0 !important;
+    line-height: 36px !important;
+}
+
+/* Placeholder color for CodeMirror */
+.cm-placeholder {
+    color: #52525b !important;
+    font-style: normal !important;
 }

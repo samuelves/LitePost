@@ -1,10 +1,8 @@
-import { useState } from "react";
-import CodeMirror from "@uiw/react-codemirror";
-import { json } from "@codemirror/lang-json";
-import { vscodeDark } from "@uiw/codemirror-theme-vscode";
+import React, { useRef, useState } from "react";
+import Editor, { loader, Monaco, OnMount } from "@monaco-editor/react"; // <--- O Poderoso Monaco
 import KeyValueTable from "./key-value-table";
 import SmartUrlInput from "./smart-url-input";
-import { EnvVariable, KeyValue } from "../types";
+import { KeyValue, Auth, EnvVariable } from "../types";
 
 interface RequestPanelProps {
   method: string;
@@ -17,6 +15,8 @@ interface RequestPanelProps {
   setHeaders: (h: KeyValue[]) => void;
   queryParams: KeyValue[];
   setQueryParams: (q: KeyValue[]) => void;
+  auth: Auth;
+  setAuth: (a: Auth) => void;
   onSend: () => void;
   onSave: () => void;
   loading: boolean;
@@ -38,6 +38,8 @@ export default function RequestPanel(props: RequestPanelProps) {
     setHeaders,
     queryParams,
     setQueryParams,
+    auth,
+    setAuth,
     onSend,
     onSave,
     loading,
@@ -46,9 +48,9 @@ export default function RequestPanel(props: RequestPanelProps) {
     requestName,
     activeVars,
   } = props;
+
   const [activeTab, setActiveTab] = useState("body");
 
-  // Cores mais vivas
   const getMethodColor = (m: string) => {
     switch (m) {
       case "GET":
@@ -66,38 +68,48 @@ export default function RequestPanel(props: RequestPanelProps) {
     }
   };
 
+  const editorRef = useRef<any>(null);
+
+  const handleEditorDidMount: OnMount = (editor) => {
+    editorRef.current = editor;
+  };
+
+  const formatJSON = () => {
+    if (editorRef.current) {
+      editorRef.current.getAction("editor.action.formatDocument").run();
+    }
+  };
+
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-[#27272a]">
-      {" "}
-      {/* Fundo bem escuro */}
-      {/* 1. URL BAR - Com mais padding (p-3) */}
-      <div className="h-16 border-b border-[#27272a] flex items-center p-2 gap-3 bg-[#09090b]">
-        {/* Select de Método */}
+    <div className="flex flex-col h-full min-w-0 bg-[#09090b]">
+      {/* 1. URL BAR */}
+      <div className="h-16 border-b border-[#27272a] flex items-center p-3 gap-3 bg-[#09090b] shrink-0">
         <div className="relative">
           <select
             value={method}
             onChange={(e) => setMethod(e.target.value)}
-            className={`bg-[#27272a] font-bold text-xs h-10 pl-3 pr-8 rounded border border-[#333] outline-none cursor-pointer hover:border-[#555] appearance-none ${getMethodColor(method)}`}
+            className={`bg-[#18181b] font-bold text-xs h-10 pl-3 pr-8 rounded border border-[#333] outline-none cursor-pointer hover:border-[#555] appearance-none ${getMethodColor(method)}`}
           >
-            <option>GET</option>
-            <option>POST</option>
-            <option>PUT</option>
-            <option>DELETE</option>
-            <option>PATCH</option>
+            {/* CSS FIX: option com fundo escuro */}
+            <option className="bg-[#18181b]">GET</option>
+            <option className="bg-[#18181b]">POST</option>
+            <option className="bg-[#18181b]">PUT</option>
+            <option className="bg-[#18181b]">DELETE</option>
+            <option className="bg-[#18181b]">PATCH</option>
           </select>
           <div className="absolute right-2 top-3 pointer-events-none text-[10px] text-gray-500">
             ▼
           </div>
         </div>
 
-        {/* Smart Input (Ocupa o resto) */}
-        <SmartUrlInput value={url} onChange={setUrl} variables={activeVars} />
+        <div className="flex-1 h-10">
+          <SmartUrlInput value={url} onChange={setUrl} variables={activeVars} />
+        </div>
 
-        {/* Botão Send */}
         <button
           onClick={onSend}
           disabled={loading}
-          className="bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-white font-bold text-xs h-10 px-6 rounded shadow-lg shadow-violet-900/20 transition-all flex items-center gap-2"
+          className="bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs h-10 px-6 rounded transition-all flex items-center gap-2"
         >
           {loading ? (
             <span className="animate-spin">⟳</span>
@@ -105,27 +117,12 @@ export default function RequestPanel(props: RequestPanelProps) {
             <span>Send</span>
           )}
         </button>
-
-        {/* Botão Save */}
         <button
           onClick={onSave}
           disabled={!selectedId}
           className="bg-[#18181b] hover:bg-[#27272a] border border-[#333] text-gray-400 hover:text-white h-10 w-10 flex items-center justify-center rounded transition-colors relative"
-          title="Save Request (Ctrl+S)"
         >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
-            />
-          </svg>
+          💾{" "}
           {saveStatus && (
             <span className="absolute -bottom-8 right-0 bg-emerald-500/10 text-emerald-400 text-[10px] px-2 py-1 rounded border border-emerald-500/20">
               {saveStatus}
@@ -133,8 +130,9 @@ export default function RequestPanel(props: RequestPanelProps) {
           )}
         </button>
       </div>
-      {/* 2. TABS - Visual mais moderno */}
-      <div className="h-10 bg-[#09090b] flex items-center px-4 gap-6 border-b border-[#27272a]">
+
+      {/* 2. TABS */}
+      <div className="h-10 bg-[#09090b] flex items-center px-4 gap-6 border-b border-[#27272a] shrink-0">
         {["body", "params", "auth", "headers"].map((tab) => (
           <button
             key={tab}
@@ -150,35 +148,82 @@ export default function RequestPanel(props: RequestPanelProps) {
           </span>
         )}
       </div>
-      {/* 3. CONTENT AREA */}
-      <div className="flex-1 overflow-auto bg-[#09090b]">
-        {/* ... Mantenha o conteúdo igual, só garanta que os fundos sejam bg-[#09090b] ou transparentes ... */}
-        {/* No CodeMirror do Body, se estiver com fundo branco, adicione className="bg-transparent" */}
+
+      {/* 3. CONTEÚDO */}
+      <div className="flex-1 min-h-0 overflow-hidden bg-[#09090b] relative flex flex-col group">
         {activeTab === "body" && (
-          <CodeMirror
-            value={body}
-            height="100%"
-            theme={vscodeDark} // Esse tema já é escuro
-            extensions={[json()]}
-            onChange={(val) => setBody(val)}
-            className="text-sm"
-          />
+          <div className="flex-1 h-full w-full relative">
+            <Editor
+              height="100%"
+              width="100%"
+              defaultLanguage="json"
+              theme="litePost"
+              onMount={handleEditorDidMount} // Pegar referencia
+              value={body}
+              onChange={(val) => setBody(val || "")}
+              options={{
+                contextmenu: false, // <--- DESATIVA MENU DIREITO
+                minimap: { enabled: false },
+                fontSize: 13,
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                fontFamily: "'Fira Code', monospace",
+                padding: { top: 16 },
+              }}
+            />
+            {/* Botão de Formatar Flutuante (Aparece no Hover) */}
+            <button
+              onClick={formatJSON}
+              className="absolute top-4 right-6 bg-[#27272a] text-xs text-gray-400 px-3 py-1 rounded border border-[#444] hover:text-white hover:border-violet-500 transition-all opacity-0 group-hover:opacity-100 z-10"
+            >
+              Format JSON
+            </button>
+          </div>
         )}
-        {/* Para Params, Auth e Headers, certifique que KeyValueTable use cores escuras */}
+
         {(activeTab === "params" || activeTab === "headers") && (
-          <div className="p-0">
-            {" "}
-            {/* Removi padding para encostar nas bordas */}
+          <div className="p-0 overflow-auto h-full">
             <KeyValueTable
               data={activeTab === "params" ? queryParams : headers}
               onChange={activeTab === "params" ? setQueryParams : setHeaders}
             />
           </div>
         )}
-        {/* ... Auth Tab ... */}
+
         {activeTab === "auth" && (
           <div className="p-8 max-w-lg">
-            {/* ... Seu form de auth. Garanta que inputs tenham bg-[#18181b] ... */}
+            <label className="flex flex-col gap-2">
+              <span className="text-xs text-gray-400 font-bold">Auth Type</span>
+              <div className="relative w-full">
+                <select
+                  value={auth.type}
+                  onChange={(e) => setAuth({ ...auth, type: e.target.value })}
+                  className="bg-[#18181b] w-full font-bold text-xs p-2 rounded border border-[#333] outline-none cursor-pointer hover:border-[#555] appearance-none text-violet-400"
+                >
+                  <option value="none" className="bg-[#18181b]">
+                    No Auth
+                  </option>
+                  <option value="bearer" className="bg-[#18181b]">
+                    Bearer Token
+                  </option>
+                </select>
+                <div className="absolute right-2 top-3 pointer-events-none text-[10px] text-gray-500">
+                  ▼
+                </div>
+              </div>
+            </label>
+            {auth.type === "bearer" && (
+              <label className="flex flex-col gap-2 mt-4">
+                <span className="text-xs text-gray-400 font-bold">Token</span>
+                <input
+                  type="text"
+                  value={auth.token}
+                  onChange={(e) => setAuth({ ...auth, token: e.target.value })}
+                  className="bg-[#18181b] border border-[#333] text-gray-200 text-sm p-2 rounded outline-none hover:border-[#555] focus:border-violet-500 transition-colors"
+                  placeholder="eyJhbG..."
+                />
+              </label>
+            )}
           </div>
         )}
       </div>

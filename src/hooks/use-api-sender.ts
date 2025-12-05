@@ -18,16 +18,9 @@ export function useApiSender() {
     setResponse(null);
 
     const processedForm = processRequestWithEnv(formState, envVars);
-    const { url, method, body, queryParams, headers, auth } = processedForm;
+    const { url, method, body, headers, auth } = processedForm;
 
     let finalUrl = url || "";
-    const queryParts = (queryParams || [])
-      .filter((p) => p.active && p.key)
-      .map((p) => `${p.key}=${encodeURIComponent(p.value)}`);
-
-    if (queryParts.length > 0) {
-      finalUrl += (finalUrl.includes("?") ? "&" : "?") + queryParts.join("&");
-    }
 
     const headersMap: Record<string, string> = {};
     (headers || []).forEach((h) => {
